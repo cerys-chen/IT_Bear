@@ -1,0 +1,3 @@
+﻿{"name":"jokebear-deskpet","version":"1.0.0","main":"src/main/main.js","scripts":{"start":"set ELECTRON_RUN_AS_NODE=&& electron ."},"devDependencies":{"electron":"^38.0.0"}}
+
+
