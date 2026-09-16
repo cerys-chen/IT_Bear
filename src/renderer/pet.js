@@ -9,7 +9,7 @@ const list = document.querySelector('#list');
 const empty = document.querySelector('#empty');
 const summary = document.querySelector('#summary');
 const title = document.querySelector('#todoTitle');
-const SHOWN_SIZE = { width: 240, height: 405 };
+const SHOWN_SIZE = { width: 240, height: 460 };
 const HIDDEN_SIZE = { width: 240, height: 235 };
 
 function localDate() {
@@ -27,6 +27,58 @@ function setGif() {
   if (!gifs.length) return;
   image.src = window.jokeBear.assetUrl(gifs[gifIndex]);
   image.alt = 'JokeBear action ' + (gifIndex + 1);
+}
+
+function appendTodoText(container, value) {
+  const parts = String(value).split(/([A-Za-z0-9]+)/g);
+  for (const part of parts) {
+    if (!part) continue;
+    if (/^[A-Za-z0-9]+$/.test(part)) {
+      const latin = document.createElement('span');
+      latin.className = 'todo-text-latin';
+      latin.textContent = part;
+      container.append(latin);
+    } else {
+      container.append(document.createTextNode(part));
+    }
+  }
+}
+
+function startEditing(item, text, todo) {
+  if (activeDate !== today) return;
+  item.draggable = false;
+  const editor = document.createElement('input');
+  editor.className = 'todo-edit';
+  editor.value = todo.text;
+  editor.maxLength = 120;
+  editor.autocomplete = 'off';
+  editor.spellcheck = false;
+  text.replaceWith(editor);
+
+  let finished = false;
+  const finish = async save => {
+    if (finished) return;
+    finished = true;
+    const value = editor.value.trim();
+    if (save && value && value !== todo.text) {
+      todos = await window.jokeBear.edit(todo.id, value);
+    }
+    render();
+  };
+
+  editor.addEventListener('keydown', event => {
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  editor.addEventListener('blur', () => finish(true));
+  editor.focus();
+  editor.select();
 }
 
 
@@ -87,8 +139,13 @@ function render() {
     check.onclick = async () => { todos = await window.jokeBear.toggle(todo.id); render(); };
     const text = document.createElement('span');
     text.className = 'todo-text';
-    text.textContent = todo.text;
+    appendTodoText(text, todo.text);
     text.title = todo.text;
+    text.addEventListener('dblclick', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      startEditing(item, text, todo);
+    });
     const remove = document.createElement('button');
     remove.className = 'delete-button';
     remove.textContent = '×';
