@@ -22,11 +22,13 @@ let gifIndex = 0;
 let todos = [];
 let activeDate = localDate();
 let today = activeDate;
+let draggedTodoId = null;
 function setGif() {
   if (!gifs.length) return;
   image.src = window.jokeBear.assetUrl(gifs[gifIndex]);
   image.alt = 'JokeBear action ' + (gifIndex + 1);
 }
+
 
 function render() {
   list.replaceChildren();
@@ -34,12 +36,49 @@ function render() {
   const left = todos.filter(todo => !todo.done).length;
   const current = activeDate === today;
   title.textContent = current ? '今日待办' : `${activeDate} 待办`;
-  summary.textContent = !todos.length ? (current ? '暂时没有待办' : '这一天没有记录') : current ? (left ? `还有 ${left} 件事` : '全部完成') : `共 ${todos.length} 件`;
+  summary.textContent = !todos.length
+    ? (current ? '暂时没有待办' : '这一天没有记录')
+    : current
+      ? (left ? `还有 ${left} 件事` : '全部完成')
+      : `共 ${todos.length} 件`;
   paper.classList.toggle('readonly', !current);
   input.disabled = !current;
   for (const todo of todos) {
     const item = document.createElement('li');
     item.className = `todo-item${todo.done ? ' done' : ''}`;
+    item.draggable = current;
+    item.dataset.todoId = todo.id;
+    item.addEventListener('dragstart', event => {
+      draggedTodoId = todo.id;
+      item.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', todo.id);
+    });
+    item.addEventListener('dragend', () => {
+      draggedTodoId = null;
+      item.classList.remove('dragging');
+      list.querySelectorAll('.drag-over').forEach(target => target.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', event => {
+      if (!current || !draggedTodoId || draggedTodoId === todo.id) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', async event => {
+      event.preventDefault();
+      item.classList.remove('drag-over');
+      if (!current || !draggedTodoId || draggedTodoId === todo.id) return;
+      const from = todos.findIndex(entry => entry.id === draggedTodoId);
+      const to = todos.findIndex(entry => entry.id === todo.id);
+      if (from < 0 || to < 0) return;
+      const next = [...todos];
+      const [movedTodo] = next.splice(from, 1);
+      next.splice(to, 0, movedTodo);
+      todos = await window.jokeBear.reorder(next.map(entry => entry.id));
+      render();
+    });
     const check = document.createElement('button');
     check.className = 'todo-check';
     check.textContent = todo.done ? '✓' : '';
@@ -49,6 +88,7 @@ function render() {
     const text = document.createElement('span');
     text.className = 'todo-text';
     text.textContent = todo.text;
+    text.title = todo.text;
     const remove = document.createElement('button');
     remove.className = 'delete-button';
     remove.textContent = '×';
@@ -59,7 +99,6 @@ function render() {
     list.append(item);
   }
 }
-
 async function loadDate(date) {
   activeDate = date;
   today = localDate();
@@ -112,7 +151,7 @@ form.onsubmit = async event => {
   input.focus();
 };
 window.jokeBear.onDateChange(loadDate);
-window.jokeBear.gifs().then(files => { gifs.push(...files); setGif(); }).catch(error => {
+window.jokeBear.gifs().then(files => { gifs.push(...files); if (gifs.length) gifIndex = Math.floor(Math.random() * gifs.length); setGif(); }).catch(error => {
   image.alt = 'GIF folder could not be read';
   console.error(error);
 });
