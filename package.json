@@ -1,3 +1,45 @@
-﻿{"name":"jokebear-deskpet","version":"1.0.0","main":"src/main/main.js","scripts":{"start":"set ELECTRON_RUN_AS_NODE=&& electron ."},"devDependencies":{"electron":"^38.0.0"}}
-
-
+{
+  "name": "jokebear-deskpet",
+  "version": "1.0.0",
+  "description": "A lightweight Electron desktop pet with local todo management.",
+  "author": "cerys-chen",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "set ELECTRON_RUN_AS_NODE=&& electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ceryschen.jokebear",
+    "productName": "JokeBear Deskpet",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
