@@ -1,0 +1,43 @@
+name: Release Windows ZIP
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows ZIP
+        run: npx electron-builder --win zip --x64
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = Get-ChildItem -LiteralPath dist -Filter "*.zip" | Select-Object -First 1
+          if (-not $zip) {
+            throw "Windows ZIP package was not generated."
+          }
+
+          gh release create "${{ github.ref_name }}" $zip.FullName `
+            --title "JokeBear Deskpet ${{ github.ref_name }}" `
+            --notes "Windows x64 ZIP package. Extract it and run JokeBear Deskpet.exe; installation is not required."
