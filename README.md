@@ -66,8 +66,8 @@ dist/
 
 当前配置会生成两个 x64 Windows 版本：
 
-- `JokeBear Deskpet-1.0.0-x64.exe`：便携版，直接双击运行
-- `JokeBear Deskpet-1.0.0-x64.zip`：解压后运行
+- `JokeBear Deskpet-1.0.1-x64.exe`：便携版，直接双击运行
+- `JokeBear Deskpet-1.0.1-x64.zip`：解压后运行
 
 ## 项目结构
 

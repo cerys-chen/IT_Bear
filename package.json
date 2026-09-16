@@ -1,6 +1,6 @@
 {
   "name": "jokebear-deskpet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight Electron desktop pet with local todo management.",
   "author": "cerys-chen",
   "main": "src/main/main.js",

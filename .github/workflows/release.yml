@@ -40,4 +40,4 @@ jobs:
 
           gh release create "${{ github.ref_name }}" $zip.FullName `
             --title "JokeBear Deskpet ${{ github.ref_name }}" `
-            --notes "Windows x64 ZIP package. Extract it and run JokeBear Deskpet.exe; installation is not required."
+            --generate-notes
