@@ -62,16 +62,15 @@ npm run dist
 npm.cmd run dist
 ```
 
-打包完成后，便携版和压缩包会输出到：
+打包完成后，便携版会输出到：
 
 ```text
 dist/
 ```
 
-当前配置会生成两个 x64 Windows 版本：
+当前配置会生成 x64 Windows 便携版：
 
 - `JokeBear Deskpet-1.0.1-x64.exe`：便携版，直接双击运行
-- `JokeBear Deskpet-1.0.1-x64.zip`：解压后运行
 
 ## 项目结构
 
@@ -128,4 +127,4 @@ node --check src/renderer/pet.js
 
 - `node_modules/` 和 `dist/` 已通过 `.gitignore` 排除。
 - 历史待办记录只读，不能重新排序或修改。
-- 当前打包目标为 x64 Windows 便携版和 ZIP 版，不写入系统安装目录。
+- 当前打包目标为 x64 Windows 便携版，不写入系统安装目录。
