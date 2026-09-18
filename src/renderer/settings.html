@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>桌宠设置</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main class="settings-page">
+    <header class="settings-header">
+      <h1>桌宠设置</h1>
+      <p>调整完成后会自动保存。</p>
+    </header>
+    <section class="settings-group">
+      <label>熊宽度 <output id="bearWidthValue"></output><input id="bearWidthSetting" type="range" min="100" max="320"></label>
+      <label>熊高度 <output id="bearHeightValue"></output><input id="bearHeightSetting" type="range" min="120" max="360"></label>
+      <label>纸张宽度 <output id="paperWidthValue"></output><input id="paperWidthSetting" type="range" min="120" max="280"></label>
+      <label>纸张高度 <output id="paperHeightValue"></output><input id="paperHeightSetting" type="range" min="160" max="420"></label>
+      <label>中文字号 <output id="todoFontSizeValue"></output><input id="todoFontSizeSetting" type="range" min="10" max="20"></label>
+      <label>英文数字字号 <output id="latinFontSizeValue"></output><input id="latinFontSizeSetting" type="range" min="8" max="18"></label>
+    </section>
+    <section class="settings-group reminder-settings">
+      <label class="check-label"><input id="morningReminderSetting" type="checkbox">启动时显示昨日总结</label>
+      <label class="check-label"><input id="eveningReminderSetting" type="checkbox">下班前提醒未完成事项</label>
+      <label>提醒时间 <input id="eveningTimeSetting" type="time"></label>
+      <label class="check-label"><input id="standingReminderSetting" type="checkbox">每隔一段时间提醒站立活动</label>
+      <label>站立提醒间隔 <output id="standingIntervalValue"></output><input id="standingIntervalSetting" type="range" min="15" max="240" step="15"></label>
+    </section>
+    <button id="saveSettings" class="settings-save" type="button">保存设置</button>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>
