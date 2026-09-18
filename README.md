@@ -70,7 +70,7 @@ dist/
 
 当前配置会生成 x64 Windows 便携版：
 
-- `JokeBear Deskpet-1.0.1-x64.exe`：便携版，直接双击运行
+- `JokeBear Deskpet-1.0.2-x64.exe`：便携版，直接双击运行
 
 ## 项目结构
 
