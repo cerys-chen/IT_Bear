@@ -27,8 +27,24 @@
       <label class="check-label"><input id="standingReminderSetting" type="checkbox">每隔一段时间提醒站立活动</label>
       <label>站立提醒间隔 <output id="standingIntervalValue"></output><input id="standingIntervalSetting" type="range" min="15" max="240" step="15"></label>
     </section>
+    <section class="settings-group workday-settings">
+      <label class="check-label"><input id="workdayEnabledSetting" type="checkbox">启用下班倒计时</label>
+      <label>下班时间口径 <select id="workdayModeSetting"><option value="auto">今天首次启动＋工时</option><option value="fixed">固定上下班时间</option></select></label>
+      <label>上班时间 <input id="workStartSetting" type="time"></label>
+      <label>下班时间 <input id="workEndSetting" type="time"></label>
+      <label>工作小时数 <output id="workHoursValue"></output><input id="workHoursSetting" type="range" min="4" max="12" step="0.5"></label>
+      <label class="check-label"><input id="lunchReminderSetting" type="checkbox">午饭时间提醒</label>
+      <label>午饭提醒时间 <input id="lunchTimeSetting" type="time"></label>
+      <label class="check-label"><input id="countdownReminderSetting" type="checkbox">下午与下班前后播报</label>
+      <label>下午播报时间 <input id="afternoonTimeSetting" type="time"></label>
+      <label>下班前提前 <output id="leadMinutesValue"></output><input id="leadMinutesSetting" type="range" min="5" max="120" step="5"></label>
+      <label class="check-label"><input id="overtimeReminderSetting" type="checkbox">下班后加班提醒</label>
+      <label>加班提醒间隔 <output id="overtimeIntervalValue"></output><input id="overtimeIntervalSetting" type="range" min="5" max="120" step="5"></label>
+      <label class="check-label"><input id="clickCountdownSetting" type="checkbox">点击熊时播报下班倒计时</label>
+    </section>
     <button id="saveSettings" class="settings-save" type="button">保存设置</button>
   </main>
+  <script src="workday.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

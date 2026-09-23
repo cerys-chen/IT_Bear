@@ -14,12 +14,18 @@ const bearResize = document.querySelector('#bearResize');
 const paperResize = document.querySelector('#paperResize');
 const settingsPanel = document.querySelector('#settingsPanel');
 const reminderPanel = document.querySelector('#reminderPanel');
-const settings = { bearWidth: 184, bearHeight: 220, paperWidth: 160, paperHeight: 260, todoFontSize: 13, latinFontSize: 11, morningReminder: true, eveningReminder: true, eveningTime: '17:30', standingReminder: true, standingInterval: 60 };
+const speech = document.querySelector('#speech');
+const settings = { bearWidth: 184, bearHeight: 220, paperWidth: 160, paperHeight: 260, todoFontSize: 13, latinFontSize: 11, morningReminder: true, eveningReminder: true, eveningTime: '17:30', standingReminder: true, standingInterval: 60, workdayEnabled: true, workdayMode: 'auto', workStart: '09:00', workEnd: '18:00', workHours: 9, lunchReminder: true, lunchTime: '11:55', countdownReminder: true, afternoonTime: '15:00', leadMinutes: 30, overtimeReminder: true, overtimeInterval: 30, clickCountdown: true };
+const WORKDAY_KINDS = ['lunch', 'afternoon', 'lead', 'offwork', 'overtime'];
 let reminderState = {};
 let resizeMode = false;
 let activeReminder = null;
 let standingReminderVisible = false;
 let lastStandingAt = Date.now();
+let workday = {};
+let workdayFetchedDate = '';
+let lastOvertimeAt = 0;
+let speechTimer = null;
 const SHOWN_SIZE = { width: 240, height: 460 };
 const HIDDEN_SIZE = { width: 240, height: 235 };
 
@@ -30,7 +36,7 @@ function localDate() {
 function resizeWindow(size, anchorLeft = false) { window.jokeBear.resize(size.width, size.height, anchorLeft); }
 function windowSize(extraWidth = 0) { return { width: Math.max(240, 60 + settings.bearWidth, 75 + settings.paperWidth) + extraWidth, height: Math.max(460, 215 + settings.paperHeight, 28 + settings.bearHeight) }; }
 function applySettings(next = {}) { Object.assign(settings, next); const root = document.documentElement; root.style.setProperty('--bear-width', `${settings.bearWidth}px`); root.style.setProperty('--bear-height', `${settings.bearHeight}px`); root.style.setProperty('--paper-width', `${settings.paperWidth}px`); root.style.setProperty('--paper-height', `${settings.paperHeight}px`); root.style.setProperty('--todo-font-size', `${settings.todoFontSize}px`); root.style.setProperty('--latin-font-size', `${settings.latinFontSize}px`); const panelWidth = settingsPanel?.classList.contains('open') ? 250 : 0; resizeWindow(paper.style.display === 'none' ? { width: Math.max(240, 60 + settings.bearWidth) + panelWidth, height: Math.max(235, 28 + settings.bearHeight) } : windowSize(panelWidth), Boolean(panelWidth)); updateRangeLabels(); }
-function updateRangeLabels() { const entries = [['bearWidth', 'px'], ['bearHeight', 'px'], ['paperWidth', 'px'], ['paperHeight', 'px'], ['todoFontSize', 'px'], ['latinFontSize', 'px']]; for (const [key, unit] of entries) { const input = document.querySelector(`#${key}Setting`); const output = document.querySelector(`#${key}Value`); if (input) input.value = settings[key]; if (output) output.textContent = `${settings[key]}${unit}`; } }
+function updateRangeLabels() { const entries = [['bearWidth', 'px'], ['bearHeight', 'px'], ['paperWidth', 'px'], ['paperHeight', 'px'], ['todoFontSize', 'px'], ['latinFontSize', 'px'], ['standingInterval', '分钟']]; for (const [key, unit] of entries) { const input = document.querySelector(`#${key}Setting`); const output = document.querySelector(`#${key}Value`); if (input) input.value = settings[key]; if (output) output.textContent = `${settings[key]}${unit}`; } updateWorkdayLabels(settings); }
 function setResizeMode(value) { resizeMode = Boolean(value); deskpet.classList.toggle('resize-mode', resizeMode); updateMouseMode(); }
 
 let gifIndex = 0;
@@ -81,11 +87,11 @@ function appendTodoText(container, value) {
 }
 
 function closePanels() { const wasSettingsOpen = settingsPanel.classList.contains('open'); settingsPanel.classList.remove('open'); deskpet.classList.remove('settings-open'); reminderPanel.classList.remove('open'); settingsPanel.setAttribute('aria-hidden', 'true'); reminderPanel.setAttribute('aria-hidden', 'true'); activeReminder = null; resizeWindow(paper.style.display === 'none' ? { width: Math.max(240, 60 + settings.bearWidth), height: Math.max(235, 28 + settings.bearHeight) } : windowSize(), wasSettingsOpen); }
-function openSettings() { closePanels(); deskpet.classList.add('settings-open'); settingsPanel.classList.add('open'); settingsPanel.setAttribute('aria-hidden', 'false'); updateRangeLabels(); document.querySelector('#morningReminderSetting').checked = Boolean(settings.morningReminder); document.querySelector('#eveningReminderSetting').checked = Boolean(settings.eveningReminder); document.querySelector('#eveningTimeSetting').value = settings.eveningTime || '17:30'; resizeWindow({ width: windowSize(250).width, height: Math.max(460, settingsPanel.offsetHeight + 25) }, true); updateMouseMode(); }
+function openSettings() { closePanels(); deskpet.classList.add('settings-open'); settingsPanel.classList.add('open'); settingsPanel.setAttribute('aria-hidden', 'false'); updateRangeLabels(); document.querySelector('#morningReminderSetting').checked = Boolean(settings.morningReminder); document.querySelector('#eveningReminderSetting').checked = Boolean(settings.eveningReminder); document.querySelector('#eveningTimeSetting').value = settings.eveningTime || '17:30'; fillWorkdayFields(settings); resizeWindow({ width: windowSize(250).width, height: Math.max(460, settingsPanel.offsetHeight + 25) }, true); updateMouseMode(); }
 function showReminder(kind, data) { if (!data) return; closePanels(); activeReminder = { kind, data }; const isMorning = kind === 'morning'; document.querySelector('#reminderTitle').textContent = isMorning ? '昨日总结' : '下班前提醒'; document.querySelector('#reminderSummary').textContent = isMorning ? `昨天完成 ${data.todos.filter(todo => todo.done).length} 件，还有 ${data.todos.filter(todo => !todo.done).length} 件未完成。` : `今天还有 ${data.todos.filter(todo => !todo.done).length} 件事没有完成。`; const listElement = document.querySelector('#reminderList'); listElement.replaceChildren(); data.todos.filter(todo => !todo.done).forEach(todo => { const li = document.createElement('li'); li.textContent = todo.text; listElement.append(li); }); document.querySelector('#carryoverButton').style.display = isMorning && data.todos.some(todo => !todo.done) ? '' : 'none'; document.querySelector('#dismissReminder').textContent = '稍后处理'; reminderPanel.classList.add('open'); reminderPanel.setAttribute('aria-hidden', 'false'); resizeWindow({ width: 240, height: Math.max(460, reminderPanel.offsetHeight + 100) }); updateMouseMode(); }
 function showStandingReminder() { closePanels(); activeReminder = { kind: 'standing' }; standingReminderVisible = true; document.querySelector('#reminderTitle').textContent = '起来活动一下'; document.querySelector('#reminderSummary').textContent = `已经工作 ${settings.standingInterval} 分钟，站起来走动一下吧。`; document.querySelector('#reminderList').replaceChildren(); document.querySelector('#carryoverButton').style.display = 'none'; document.querySelector('#dismissReminder').textContent = '知道了'; reminderPanel.classList.add('open'); reminderPanel.setAttribute('aria-hidden', 'false'); resizeWindow({ width: 240, height: Math.max(460, reminderPanel.offsetHeight + 100) }); updateMouseMode(); }
-async function dismissReminder() { if (!activeReminder) return; if (activeReminder.kind === 'standing') { standingReminderVisible = false; lastStandingAt = Date.now(); closePanels(); applySettings(); return; } await window.jokeBear.acknowledgeReminder(activeReminder.kind); reminderState[activeReminder.kind + 'Date'] = localDate(); closePanels(); applySettings(); }
-function setupSettings() { const fields = ['bearWidth', 'bearHeight', 'paperWidth', 'paperHeight', 'todoFontSize', 'latinFontSize']; fields.forEach(key => document.querySelector(`#${key}Setting`).addEventListener('input', event => { settings[key] = Number(event.target.value); applySettings(); })); document.querySelector('#saveSettings').onclick = async () => { const changes = { ...settings, morningReminder: document.querySelector('#morningReminderSetting').checked, eveningReminder: document.querySelector('#eveningReminderSetting').checked, eveningTime: document.querySelector('#eveningTimeSetting').value || '17:30', standingReminder: document.querySelector('#standingReminderSetting').checked }; Object.assign(settings, changes); await window.jokeBear.saveSettings(changes); closePanels(); applySettings(); }; document.querySelector('#closeSettings').onclick = closePanels; document.querySelector('#dismissReminder').onclick = dismissReminder; document.querySelector('#carryoverButton').onclick = async () => { if (!activeReminder?.data?.date) return; await window.jokeBear.carryover(activeReminder.data.date); await window.jokeBear.acknowledgeReminder('morning'); closePanels(); await loadDate(today); }; }
+async function dismissReminder() { if (!activeReminder) return; if (activeReminder.kind === 'standing' || WORKDAY_KINDS.includes(activeReminder.kind)) { standingReminderVisible = false; if (activeReminder.kind === 'standing') lastStandingAt = Date.now(); closePanels(); applySettings(); return; } await window.jokeBear.acknowledgeReminder(activeReminder.kind); reminderState[activeReminder.kind + 'Date'] = localDate(); closePanels(); applySettings(); }
+function setupSettings() { const fields = ['bearWidth', 'bearHeight', 'paperWidth', 'paperHeight', 'todoFontSize', 'latinFontSize']; fields.forEach(key => document.querySelector(`#${key}Setting`).addEventListener('input', event => { settings[key] = Number(event.target.value); applySettings(); })); ['standingInterval', ...WORKDAY_RANGES.map(([key]) => key)].forEach(key => document.querySelector(`#${key}Setting`)?.addEventListener('input', event => { settings[key] = Number(event.target.value); applySettings(); })); document.querySelector('#workdayModeSetting')?.addEventListener('change', event => { settings.workdayMode = event.target.value === 'fixed' ? 'fixed' : 'auto'; syncWorkdayVisibility(settings); }); document.querySelector('#saveSettings').onclick = async () => { const changes = readWorkdayFields(settings, { ...settings, morningReminder: document.querySelector('#morningReminderSetting')?.checked ?? settings.morningReminder, eveningReminder: document.querySelector('#eveningReminderSetting')?.checked ?? settings.eveningReminder, eveningTime: document.querySelector('#eveningTimeSetting')?.value || settings.eveningTime || '17:30', standingReminder: document.querySelector('#standingIntervalSetting') ? document.querySelector('#standingReminderSetting')?.checked ?? settings.standingReminder : settings.standingReminder }); Object.assign(settings, changes); await window.jokeBear.saveSettings(changes); closePanels(); applySettings(); }; document.querySelector('#closeSettings').onclick = closePanels; document.querySelector('#dismissReminder').onclick = dismissReminder; document.querySelector('#carryoverButton').onclick = async () => { if (!activeReminder?.data?.date) return; await window.jokeBear.carryover(activeReminder.data.date); await window.jokeBear.acknowledgeReminder('morning'); closePanels(); await loadDate(today); }; }
 function setupResizeHandle(handle, type) {
   let resizing = false;
   let startX = 0;
@@ -151,6 +157,105 @@ async function checkReminders() {
   if (settings.eveningReminder && due && todos.some(todo => !todo.done) && reminderState.eveningDate !== localDate()) {
     showReminder('evening', { date: today, todos });
   }
+}
+
+function offWorkPlan() {
+  if (!settings.workdayEnabled) return null;
+  const startedAt = Number(workday.startedAt);
+  if (settings.workdayMode === 'auto') {
+    if (!Number.isFinite(startedAt)) return null;
+    return { start: startedAt, end: startedAt + Math.max(1, Number(settings.workHours) || 9) * 3600000 };
+  }
+  return { start: timestampOf(settings.workStart, '09:00'), end: timestampOf(settings.workEnd, '18:00') };
+}
+function say(text) {
+  speech.textContent = text;
+  speech.classList.add('show');
+  clearTimeout(speechTimer);
+  speechTimer = setTimeout(() => speech.classList.remove('show'), 9000);
+}
+function countdownText() {
+  const plan = offWorkPlan();
+  if (!plan) return '还没有设置下班时间，去设置里开启下班倒计时吧。';
+  const left = plan.end - Date.now();
+  if (left > 0) return `人，距离下班还有 ${formatRemaining(left)}（${formatWorkdayTime(plan.end)} 下班）`;
+  return `人，已经过了下班时间 ${formatRemaining(-left)}了！（${formatWorkdayTime(plan.end)} 下班）`;
+}
+function workdayCopy(kind, plan) {
+  const left = plan.end - Date.now();
+  if (kind === 'lunch') return { title: '饿饿饿', summary: `到午饭时间噜，吃饭吃饭，下午也才过一半，${formatWorkdayTime(plan.end)} 下班。` };
+  if (kind === 'afternoon') return { title: '下班倒计时', summary: `人，现在 ${formatWorkdayTime(Date.now())}，距离下班还有 ${formatRemaining(left)}，再撑一下。` };
+  if (kind === 'lead') return { title: '累累累', summary: `人，还有 ${formatRemaining(left)} 就下班了，收尾一下吧。` };
+  if (kind === 'offwork') return { title: '耶耶耶', summary: `人，${formatWorkdayTime(plan.end)} 了，到点收工，剩下的明天再搞。` };
+  return { title: '还不下班？！', summary: `人，已经过了下班时间 ${formatRemaining(-left)}，还不跑路吗？` };
+}
+function planStartOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+function workdayFired(kind) {
+  return reminderState[kind + 'Date'] === localDate();
+}
+async function refreshWorkdayState() {
+  const state = await window.jokeBear.state();
+  Object.assign(settings, state.settings || {});
+  reminderState = state.reminders || {};
+  workday = state.workday || {};
+  workdayFetchedDate = localDate();
+  applySettings();
+}
+function showWorkdayReminder(kind) {
+  const plan = offWorkPlan();
+  if (!plan) return;
+  const copy = workdayCopy(kind, plan);
+  closePanels();
+  activeReminder = { kind };
+  document.querySelector('#reminderTitle').textContent = copy.title;
+  document.querySelector('#reminderSummary').textContent = copy.summary;
+  document.querySelector('#reminderList').replaceChildren();
+  document.querySelector('#carryoverButton').style.display = 'none';
+  document.querySelector('#dismissReminder').textContent = '知道了';
+  reminderPanel.classList.add('open');
+  reminderPanel.setAttribute('aria-hidden', 'false');
+  resizeWindow({ width: 240, height: Math.max(460, reminderPanel.offsetHeight + 100) });
+  updateMouseMode();
+}
+async function checkWorkdayReminders() {
+  if (workdayFetchedDate !== localDate()) await refreshWorkdayState();
+  if (!settings.workdayEnabled || settingsPanel.classList.contains('open') || reminderPanel.classList.contains('open')) return;
+  const plan = offWorkPlan();
+  if (!plan) return;
+  const now = Date.now();
+  const stages = [
+    { kind: 'lunch', on: settings.lunchReminder, at: timestampOf(settings.lunchTime, '11:55') },
+    { kind: 'afternoon', on: settings.countdownReminder, at: timestampOf(settings.afternoonTime, '15:00') },
+    { kind: 'lead', on: settings.countdownReminder, at: plan.end - Math.max(5, Number(settings.leadMinutes) || 30) * 60000 },
+    { kind: 'offwork', on: settings.countdownReminder, at: plan.end }
+  ];
+  const eligible = stages.filter(stage => stage.on && now >= stage.at && now >= plan.start && now - stage.at <= 45 * 60000);
+  const stage = eligible[eligible.length - 1];
+  if (stage && !workdayFired(stage.kind)) {
+    markWorkdayFired(stage.kind, now);
+    showWorkdayReminder(stage.kind);
+    return;
+  }
+  const interval = Math.max(5, Number(settings.overtimeInterval) || 30) * 60000;
+  if (!settings.overtimeReminder || now - plan.end < interval) return;
+  const alreadyAsked = Number(reminderState.overtimeAt) >= planStartOfToday() || lastOvertimeAt >= planStartOfToday();
+  if (alreadyAsked && now - Math.max(Number(reminderState.overtimeAt) || 0, lastOvertimeAt) < interval) return;
+  markWorkdayFired('overtime', now);
+  showWorkdayReminder('overtime');
+}
+function markWorkdayFired(kind, now) {
+  if (kind === 'overtime') {
+    lastOvertimeAt = now;
+    reminderState.overtimeAt = now;
+    window.jokeBear.markReminder('overtimeAt', now).catch(error => console.error(error));
+    return;
+  }
+  reminderState[kind + 'Date'] = localDate();
+  window.jokeBear.markReminder(kind + 'Date', localDate()).catch(error => console.error(error));
 }
 
 function startEditing(item, text, todo) {
@@ -307,6 +412,7 @@ bear.addEventListener('pointerup', event => {
     gifIndex = (gifIndex + 1) % gifs.length;
     setGif();
   }
+  if (!moved && settings.clickCountdown) say(countdownText());
   updateMouseMode();
 });
 bear.addEventListener('pointercancel', () => { dragging = false; updateMouseMode(); });
@@ -325,12 +431,12 @@ setupSettings();
 setupResizeHandle(bearResize, 'bear');
 setupResizeHandle(paperResize, 'paper');
 window.jokeBear.onSettingsOpen(openSettings);
-window.jokeBear.onSettingsChanged(changes => { applySettings(changes); if (!settings.standingReminder && standingReminderVisible) { standingReminderVisible = false; closePanels(); applySettings(); } });
+window.jokeBear.onSettingsChanged(changes => { applySettings(changes); if (!settings.standingReminder && standingReminderVisible) { standingReminderVisible = false; closePanels(); applySettings(); } if (!settings.workdayEnabled && WORKDAY_KINDS.includes(activeReminder?.kind)) closePanels(); if (settingsPanel.classList.contains('open')) fillWorkdayFields(settings); });
 window.jokeBear.onResizeMode(setResizeMode);
 window.jokeBear.onDateChange(loadDate);
 window.jokeBear.gifs().then(files => { gifs.push(...files); if (gifs.length) gifIndex = Math.floor(Math.random() * gifs.length); setGif(); }).catch(error => {
   image.alt = 'GIF folder could not be read';
   console.error(error);
 });
-window.jokeBear.state().then(state => { Object.assign(settings, state.settings || {}); setResizeMode(state.resizeMode); applySettings(); return loadDate(today); }).then(checkReminders).catch(error => console.error(error));
-setInterval(() => { if (settings.eveningReminder || settings.morningReminder) checkReminders(); checkStandingReminder(); }, 30000);
+window.jokeBear.state().then(state => { Object.assign(settings, state.settings || {}); workday = state.workday || {}; workdayFetchedDate = localDate(); setResizeMode(state.resizeMode); applySettings(); return loadDate(today); }).then(checkReminders).catch(error => console.error(error));
+setInterval(() => { if (settings.eveningReminder || settings.morningReminder) checkReminders(); checkStandingReminder(); checkWorkdayReminders().catch(error => console.error(error)); }, 30000);
