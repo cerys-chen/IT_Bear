@@ -29,9 +29,20 @@ function formatRemaining(ms) {
 function testMainProcess() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jokebear-test-'));
   const handlers = {};
+  const loginItems = [];
+  let readyFn;
   const fakeElectron = {
-    app: { getPath: () => dataDir, whenReady: () => ({ then: () => {} }), on: () => {} },
-    BrowserWindow: class {},
+    app: { isPackaged: true, getPath: () => dataDir, whenReady: () => ({ then: fn => { readyFn = fn; } }), on: () => {}, setLoginItemSettings: settings => { loginItems.push(settings); } },
+    BrowserWindow: class {
+      constructor() { this.webContents = { send() {} }; }
+      loadFile() {}
+      on() {}
+      setAlwaysOnTop() {}
+      getContentSize() { return [240, 460]; }
+      getPosition() { return [0, 0]; }
+      setPosition() {}
+      isDestroyed() { return false; }
+    },
     screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     Menu: { buildFromTemplate: () => ({ popup: () => {} }) },
     ipcMain: { on: () => {}, handle: (channel, fn) => { handlers[channel] = fn; } }
@@ -70,8 +81,24 @@ function testMainProcess() {
   assert.strictEqual(rolled.workday.date, localDate(), '跨天后首次启动时间归属新的一天');
   assert.ok(rolled.workday.startedAt >= first.workday.startedAt, '跨天后重新记录首次启动时间');
 
+  // Auto-start: the launch entry is refreshed with a fixed registry value name,
+  // so repeated launches rewrite one entry instead of piling up.
+  readyFn();
+  assert.strictEqual(loginItems.length, 1, '启动时刷新一次开机自启注册');
+  assert.strictEqual(loginItems[0].openAtLogin, false, '默认不开机自启');
+  assert.strictEqual(loginItems[0].name, 'JokeBear Deskpet', '注册表值名固定');
+  assert.strictEqual(loginItems[0].path, process.execPath, '非便携版按当前 exe 注册');
+  process.env.PORTABLE_EXECUTABLE_FILE = 'D:\\apps\\JokeBear Deskpet-1.0.2-x64.exe';
+  handlers['settings:save'](null, { autoStart: true });
+  assert.strictEqual(loginItems.length, 2, '保存开关时再注册一次');
+  assert.strictEqual(loginItems[1].openAtLogin, true, '勾选后开启开机自启');
+  assert.strictEqual(loginItems[1].path, 'D:\\apps\\JokeBear Deskpet-1.0.2-x64.exe', '便携版按便携 exe 注册');
+  handlers['settings:save'](null, { autoStart: false });
+  assert.strictEqual(loginItems[2].openAtLogin, false, '取消勾选后注销开机自启');
+  delete process.env.PORTABLE_EXECUTABLE_FILE;
+
   fs.rmSync(dataDir, { recursive: true, force: true });
-  console.log('ok  主进程：首次启动时间持久化 + 跨天重置 + 提醒状态写入');
+  console.log('ok  主进程：首次启动时间持久化 + 跨天重置 + 提醒状态写入 + 开机自启注册');
 }
 
 function createPet() {
@@ -173,7 +200,7 @@ async function flush() {
 }
 
 async function testRenderer() {
-  const { context, marks, element, run } = createPet();
+  const { context, state, marks, element, run } = createPet();
   await flush();
 
   assert.strictEqual(context.formatRemaining(25 * MINUTE), '25 分钟');
@@ -289,6 +316,15 @@ async function testRenderer() {
   assert.strictEqual(labelOf('#workHoursSetting').hidden, false, '自动模式显示工作小时数');
   assert.strictEqual(labelOf('#workEndSetting').hidden, true, '自动模式隐藏下班时间');
   assert.strictEqual(labelOf('#workStartSetting').hidden, true, '自动模式隐藏上班时间');
+
+  // The auto-start checkbox reflects the stored setting when the panel opens,
+  // and the save button sends whatever the checkbox currently shows.
+  run('settings.autoStart = true;');
+  context.openSettings();
+  assert.strictEqual(element('#autoStartSetting').checked, true, '打开设置面板时回填开机自启状态');
+  element('#autoStartSetting').checked = false;
+  await element('#saveSettings').onclick();
+  assert.strictEqual(state.settings.autoStart, false, '保存时提交开机自启字段');
 }
 
 (async () => {

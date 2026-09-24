@@ -1,4 +1,4 @@
-const settings = { bearWidth: 184, bearHeight: 220, paperWidth: 160, paperHeight: 260, todoFontSize: 13, latinFontSize: 11, morningReminder: true, eveningReminder: true, eveningTime: '17:30', standingReminder: true, standingInterval: 60, workdayEnabled: true, workdayMode: 'auto', workStart: '09:00', workEnd: '18:00', workHours: 9, lunchReminder: true, lunchTime: '11:55', countdownReminder: true, afternoonTime: '15:00', leadMinutes: 30, overtimeReminder: true, overtimeInterval: 30, clickCountdown: true };
+const settings = { bearWidth: 184, bearHeight: 220, paperWidth: 160, paperHeight: 260, todoFontSize: 13, latinFontSize: 11, morningReminder: true, eveningReminder: true, eveningTime: '17:30', standingReminder: true, standingInterval: 60, workdayEnabled: true, workdayMode: 'auto', workStart: '09:00', workEnd: '18:00', workHours: 9, lunchReminder: true, lunchTime: '11:55', countdownReminder: true, afternoonTime: '15:00', leadMinutes: 30, overtimeReminder: true, overtimeInterval: 30, clickCountdown: true, autoStart: false };
 const fields = ['bearWidth', 'bearHeight', 'paperWidth', 'paperHeight', 'todoFontSize', 'latinFontSize', 'standingInterval', 'workHours', 'leadMinutes', 'overtimeInterval'];
 
 function updateLabels() {
@@ -17,6 +17,7 @@ async function load() {
   document.querySelector('#eveningReminderSetting').checked = Boolean(settings.eveningReminder);
   document.querySelector('#eveningTimeSetting').value = settings.eveningTime || '17:30';
   document.querySelector('#standingReminderSetting').checked = Boolean(settings.standingReminder);
+  document.querySelector('#autoStartSetting').checked = Boolean(settings.autoStart);
   fillWorkdayFields(settings);
 }
 
@@ -37,7 +38,8 @@ document.querySelector('#saveSettings').addEventListener('click', async () => {
     morningReminder: document.querySelector('#morningReminderSetting').checked,
     eveningReminder: document.querySelector('#eveningReminderSetting').checked,
     eveningTime: document.querySelector('#eveningTimeSetting').value || '17:30',
-    standingReminder: document.querySelector('#standingReminderSetting').checked
+    standingReminder: document.querySelector('#standingReminderSetting').checked,
+    autoStart: document.querySelector('#autoStartSetting').checked
   }));
   await window.jokeBear.saveSettings(settings);
   window.close();

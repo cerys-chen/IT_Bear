@@ -29,7 +29,8 @@
       "en-US"
     ],
     "win": {
-      "signAndEditExecutable": false,
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": true,
       "target": [
         {
           "target": "portable",
