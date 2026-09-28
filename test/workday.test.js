@@ -216,7 +216,7 @@ function createPet() {
   const jokeBear = {
     assetUrl: file => `file:///${file}`,
     gifs: () => Promise.resolve([]),
-    state: () => Promise.resolve(state),
+    state: () => Promise.resolve({ ...state, settings: { ...state.settings }, reminders: { ...state.reminders }, workday: { ...state.workday } }),
     list: () => Promise.resolve([]),
     dates: () => Promise.resolve([]),
     resize() {},
@@ -294,6 +294,24 @@ async function testRenderer() {
   element('#reminderTitle').textContent = '';
   await context.checkWorkdayReminders();
   assert.strictEqual(element('#reminderTitle').textContent, '', '午饭提醒当天不重复');
+
+  // The periodic tick refreshes the reminder cache and picks a stage in the
+  // same turn, so the refresh must not erase the mark the stage check wrote.
+  run(`Object.assign(settings, { workdayMode: 'auto', workHours: 9, lunchReminder: false, countdownReminder: true, overtimeReminder: false, morningReminder: false, eveningReminder: false, afternoonTime: '${atTime(Date.now(), 0)}' });
+       workday = { date: localDate(), startedAt: Date.now() - 3 * 3600000 };
+       workdayFetchedDate = localDate();
+       reminderState = {};`);
+  element('#reminderTitle').textContent = '';
+  let refresh = context.checkReminders();
+  await context.checkWorkdayReminders();
+  await refresh;
+  assert.strictEqual(element('#reminderTitle').textContent, '下班倒计时', '到点推送下班倒计时');
+  context.closePanels();
+  element('#reminderTitle').textContent = '';
+  refresh = context.checkReminders();
+  await context.checkWorkdayReminders();
+  await refresh;
+  assert.strictEqual(element('#reminderTitle').textContent, '', '状态刷新不会把刚写入的标记冲掉，当天不重复播报');
 
   // A stage missed by hours is skipped instead of announced late.
   run(`Object.assign(settings, { countdownReminder: true, lunchTime: '${atTime(Date.now(), -8 * 60)}', afternoonTime: '${atTime(Date.now(), 90)}' });`);

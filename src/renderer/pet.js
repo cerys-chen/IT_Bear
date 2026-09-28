@@ -145,7 +145,7 @@ async function checkReminders() {
   if (settingsPanel.classList.contains('open') || reminderPanel.classList.contains('open')) return;
   const state = await window.jokeBear.state();
   Object.assign(settings, state.settings || {});
-  reminderState = state.reminders || {};
+  syncReminderState(state.reminders);
   applySettings();
   const yesterday = state.yesterday;
   if (settings.morningReminder && yesterday && reminderState.morningDate !== localDate()) {
@@ -197,10 +197,15 @@ function planStartOfToday() {
 function workdayFired(kind) {
   return reminderState[kind + 'Date'] === localDate();
 }
+function syncReminderState(reminders) {
+  // A tick can read this cache back from disk while the mark it just wrote is
+  // still landing, so marks held here must win over the older snapshot.
+  reminderState = { ...(reminders || {}), ...reminderState };
+}
 async function refreshWorkdayState() {
   const state = await window.jokeBear.state();
   Object.assign(settings, state.settings || {});
-  reminderState = state.reminders || {};
+  syncReminderState(state.reminders);
   workday = state.workday || {};
   workdayFetchedDate = localDate();
   applySettings();
