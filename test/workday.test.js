@@ -29,23 +29,55 @@ function formatRemaining(ms) {
 function testMainProcess() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jokebear-test-'));
   const handlers = {};
+  const listeners = {};
   const loginItems = [];
-  let readyFn;
+  const readyFns = [];
+  const petWindows = [];
   const fakeElectron = {
-    app: { isPackaged: true, getPath: () => dataDir, whenReady: () => ({ then: fn => { readyFn = fn; } }), on: () => {}, setLoginItemSettings: settings => { loginItems.push(settings); } },
+    app: {
+      isPackaged: true,
+      getPath: () => dataDir,
+      whenReady: () => ({ then: fn => { readyFns.push(fn); } }),
+      on: (event, fn) => { listeners[event] = fn; },
+      setLoginItemSettings: settings => { loginItems.push(settings); },
+      requestSingleInstanceLock: () => true,
+      quit: () => { listeners['quit-called'] = true; }
+    },
     BrowserWindow: class {
-      constructor() { this.webContents = { send() {} }; }
+      constructor(options) {
+        this.options = options;
+        this.x = options.x;
+        this.y = options.y;
+        this.width = options.width;
+        this.height = options.height;
+        this.visible = true;
+        this.moved = [];
+        this.focused = 0;
+        this.webContents = { send() {} };
+        petWindows.push(this);
+      }
       loadFile() {}
       on() {}
       setAlwaysOnTop() {}
-      getContentSize() { return [240, 460]; }
-      getPosition() { return [0, 0]; }
-      setPosition() {}
+      getContentSize() { return [this.width, this.height]; }
+      getSize() { return [this.width, this.height]; }
+      getPosition() { return [this.x, this.y]; }
+      setPosition(x, y) { this.x = x; this.y = y; this.moved.push([x, y]); }
+      setContentSize(width, height) { this.width = width; this.height = height; }
+      isVisible() { return this.visible; }
+      show() { this.visible = true; }
+      focus() { this.focused++; }
       isDestroyed() { return false; }
     },
-    screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
+    screen: {
+      getPrimaryDisplay: () => ({ bounds: { x: 0, y: 0, width: 2048, height: 1152 }, workArea: { x: 0, y: 0, width: 2048, height: 1104 } }),
+      getAllDisplays: () => ([
+        { bounds: { x: -1280, y: 0, width: 1280, height: 800 }, workArea: { x: -1280, y: 0, width: 1280, height: 752 } },
+        { bounds: { x: 0, y: 0, width: 2048, height: 1152 }, workArea: { x: 0, y: 0, width: 2048, height: 1104 } }
+      ])
+    },
     Menu: { buildFromTemplate: () => ({ popup: () => {} }) },
-    ipcMain: { on: () => {}, handle: (channel, fn) => { handlers[channel] = fn; } }
+    ipcMain: { on: (channel, fn) => { listeners[channel] = fn; }, handle: (channel, fn) => { handlers[channel] = fn; } }
   };
   const load = Module._load;
   Module._load = function (request, ...rest) {
@@ -83,7 +115,14 @@ function testMainProcess() {
 
   // Auto-start: the launch entry is refreshed with a fixed registry value name,
   // so repeated launches rewrite one entry instead of piling up.
-  readyFn();
+  patch({ position: { x: 2024, y: 504 } });
+  readyFns[0]();
+  const pet = petWindows[petWindows.length - 1];
+  assert.deepStrictEqual([pet.x, pet.y], [1808, 504], '越界的窗口位置被拉回屏幕内');
+  pet.setPosition(2400, 504);
+  listeners['second-instance']();
+  assert.deepStrictEqual([pet.x, pet.y], [1808, 504], '再次启动时把窗口拉回屏幕内');
+  assert.ok(pet.focused > 0, '再次启动时聚焦已有实例');
   assert.strictEqual(loginItems.length, 1, '启动时刷新一次开机自启注册');
   assert.strictEqual(loginItems[0].openAtLogin, false, '默认不开机自启');
   assert.strictEqual(loginItems[0].name, 'JokeBear Deskpet', '注册表值名固定');
@@ -97,8 +136,22 @@ function testMainProcess() {
   assert.strictEqual(loginItems[2].openAtLogin, false, '取消勾选后注销开机自启');
   delete process.env.PORTABLE_EXECUTABLE_FILE;
 
+  // A duplicate launch must bail out before registering startup work at all.
+  const windowsBefore = petWindows.length;
+  fakeElectron.app.requestSingleInstanceLock = () => false;
+  delete require.cache[require.resolve(path.join(root, 'src/main/main.js'))];
+  const reload = Module._load;
+  Module._load = function (request, ...rest) {
+    return request === 'electron' ? fakeElectron : reload.call(this, request, ...rest);
+  };
+  require(path.join(root, 'src/main/main.js'));
+  Module._load = reload;
+  assert.strictEqual(readyFns.length, 1, '拿不到单实例锁时不注册启动逻辑');
+  assert.strictEqual(petWindows.length, windowsBefore, '拿不到单实例锁时不再创建窗口');
+  assert.strictEqual(listeners['quit-called'], true, '拿不到单实例锁时退出');
+
   fs.rmSync(dataDir, { recursive: true, force: true });
-  console.log('ok  主进程：首次启动时间持久化 + 跨天重置 + 提醒状态写入 + 开机自启注册');
+  console.log('ok  主进程：首次启动时间持久化 + 跨天重置 + 提醒状态写入 + 开机自启注册 + 窗口位置钳制 + 单实例');
 }
 
 function createPet() {
