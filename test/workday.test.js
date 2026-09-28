@@ -313,6 +313,15 @@ async function testRenderer() {
   await refresh;
   assert.strictEqual(element('#reminderTitle').textContent, '', '状态刷新不会把刚写入的标记冲掉，当天不重复播报');
 
+  // A mark written only to disk (the carry-over button) must still win over an
+  // older mark held in memory, otherwise that reminder fires again today.
+  const staleStamp = Date.now() - 26 * 3600000;
+  const newerStamp = Date.now() - 25 * 3600000;
+  run(`reminderState = { morningDate: '2026-09-27', overtimeAt: ${staleStamp} };`);
+  context.syncReminderState({ morningDate: localDate(), overtimeAt: newerStamp });
+  assert.strictEqual(run('reminderState.morningDate'), localDate(), '磁盘上更新的日期标记会覆盖本地过期标记');
+  assert.strictEqual(run('reminderState.overtimeAt'), newerStamp, '较新的时间戳标记保留');
+
   // A stage missed by hours is skipped instead of announced late.
   run(`Object.assign(settings, { countdownReminder: true, lunchTime: '${atTime(Date.now(), -8 * 60)}', afternoonTime: '${atTime(Date.now(), 90)}' });`);
   await context.checkWorkdayReminders();

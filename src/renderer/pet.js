@@ -198,9 +198,21 @@ function workdayFired(kind) {
   return reminderState[kind + 'Date'] === localDate();
 }
 function syncReminderState(reminders) {
-  // A tick can read this cache back from disk while the mark it just wrote is
-  // still landing, so marks held here must win over the older snapshot.
-  reminderState = { ...(reminders || {}), ...reminderState };
+  // A tick can read this cache back from disk before the mark it just wrote has
+  // landed, so each key keeps whichever side is further along in time.
+  const next = { ...(reminders || {}) };
+  for (const [key, local] of Object.entries(reminderState)) {
+    const stored = next[key];
+    if (stored === undefined) {
+      next[key] = local;
+      continue;
+    }
+    const ahead = typeof local === 'number' && typeof stored === 'number'
+      ? local > stored
+      : String(local) > String(stored);
+    if (ahead) next[key] = local;
+  }
+  reminderState = next;
 }
 async function refreshWorkdayState() {
   const state = await window.jokeBear.state();
